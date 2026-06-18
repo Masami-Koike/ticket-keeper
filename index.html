@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TicketKeeper">
+<meta name="theme-color" content="#0b0d10">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230b0d10'/><path d='M12 22 a4 4 0 0 1 4 -4 h32 a4 4 0 0 1 4 4 v3 a3.5 3.5 0 0 0 0 7 v3 a4 4 0 0 1 -4 4 h-32 a4 4 0 0 1 -4 -4 v-3 a3.5 3.5 0 0 0 0 -7 z' fill='none' stroke='%23ff6b35' stroke-width='3' stroke-linejoin='round'/><line x1='38' y1='20' x2='38' y2='44' stroke='%23ff6b35' stroke-width='2' stroke-dasharray='3 3'/></svg>">
+<title>TicketKeeper</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --surface: #15181d;
+    --surface-2: #1d2127;
+    --line: #262b33;
+    --text: #f1f3f5;
+    --text-dim: #8a93a0;
+    --text-faint: #5b6470;
+    --accent: #ff6b35;
+    --accent-soft: rgba(255,107,53,0.15);
+    --red: #f04444;
+    --red-soft: rgba(240,68,68,0.13);
+    --orange: #f5a524;
+    --orange-soft: rgba(245,165,36,0.12);
+    --yellow: #d8c43a;
+    --yellow-soft: rgba(216,196,58,0.10);
+    --good: #2ec27e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+    font-size: 16px; overscroll-behavior: none; -webkit-font-smoothing: antialiased;
+  }
+  body { min-height: 100vh; min-height: 100dvh; padding-bottom: env(safe-area-inset-bottom); }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, select, textarea { font-family: inherit; }
+
+  .app {
+    max-width: 640px; margin: 0 auto; padding-top: env(safe-area-inset-top);
+    min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
+  }
+
+  /* ===== Header ===== */
+  .header {
+    padding: 18px 20px 12px; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+  }
+  .header h1 { margin: 0; font-size: 19px; font-weight: 700; display: flex; align-items: center; gap: 9px; }
+  .header h1 .tk { color: var(--accent); }
+  .menu-wrap { position: relative; }
+  .menu-btn { font-size: 22px; color: var(--text-dim); padding: 4px 8px; line-height: 1; border-radius: 8px; }
+  .menu-btn:hover { color: var(--text); background: var(--surface-2); }
+  .menu {
+    position: absolute; right: 0; top: 38px; background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 6px; min-width: 200px; z-index: 30; display: none;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  }
+  .menu.open { display: block; }
+  .menu button {
+    display: block; width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px;
+    font-size: 14px; color: var(--text);
+  }
+  .menu button:hover { background: var(--surface); }
+  .menu button.danger { color: var(--red); }
+  .menu hr { border: none; border-top: 1px solid var(--line); margin: 5px 4px; }
+
+  /* ===== Body ===== */
+  .body { flex: 1; padding: 16px 16px 32px; }
+
+  .summary {
+    font-size: 13px; color: var(--text-dim); margin-bottom: 14px; line-height: 1.7;
+  }
+  .summary .pill {
+    display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 12px; margin-right: 6px;
+    background: var(--surface-2); color: var(--text-dim);
+  }
+  .summary .pill.red { background: var(--red-soft); color: var(--red); }
+  .summary .pill.orange { background: var(--orange-soft); color: var(--orange); }
+
+  .controls { display: flex; gap: 8px; margin-bottom: 12px; }
+  .controls input[type=search] {
+    flex: 1; min-width: 0; padding: 10px 13px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface); color: var(--text); font-size: 14px;
+  }
+  .controls select {
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface); color: var(--text); font-size: 13px;
+  }
+  .controls input::placeholder { color: var(--text-faint); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+  .chip {
+    border: 1px solid var(--line); background: var(--surface); color: var(--text-dim);
+    padding: 6px 13px; border-radius: 20px; font-size: 13px; user-select: none;
+  }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+  .toggle-used {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim);
+    margin-bottom: 16px; user-select: none; cursor: pointer;
+  }
+  .toggle-used input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+  /* ===== List ===== */
+  .list { display: flex; flex-direction: column; gap: 11px; }
+  .item {
+    background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line);
+    border-radius: 13px; padding: 13px 15px; display: flex; gap: 12px; align-items: flex-start;
+  }
+  .item.expired { border-left-color: var(--red); background: linear-gradient(90deg, var(--red-soft), var(--surface) 55%); }
+  .item.soon    { border-left-color: var(--orange); background: linear-gradient(90deg, var(--orange-soft), var(--surface) 55%); }
+  .item.month   { border-left-color: var(--yellow); }
+  .item.used    { opacity: .5; }
+  .item.used .name { text-decoration: line-through; }
+  .item-main { flex: 1; min-width: 0; }
+  .name { font-weight: 700; font-size: 15.5px; word-break: break-word; }
+  .meta { font-size: 12.5px; color: var(--text-dim); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 5px 9px; align-items: center; }
+  .cat-tag { background: var(--surface-2); border-radius: 6px; padding: 1px 8px; font-size: 11.5px; color: var(--text-dim); }
+  .note { font-size: 12.5px; color: var(--text-faint); margin-top: 5px; white-space: pre-wrap; word-break: break-word; }
+  .row-actions { display: flex; gap: 7px; margin-top: 9px; }
+  .icon-btn {
+    border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; font-size: 12px; color: var(--text-dim);
+    background: var(--surface-2);
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--text-faint); }
+
+  .days { text-align: right; min-width: 66px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .days .num { font-weight: 700; font-size: 15px; white-space: nowrap; color: var(--text); }
+  .days.expired .num { color: var(--red); }
+  .days.soon .num { color: var(--orange); }
+  .days.month .num { color: var(--yellow); }
+  .days .date { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; }
+
+  .empty { text-align: center; color: var(--text-faint); padding: 56px 16px; }
+  .empty .big { font-size: 46px; margin-bottom: 10px; }
+
+  /* ===== FAB ===== */
+  .fab {
+    position: fixed; right: 18px; bottom: 22px; bottom: calc(22px + env(safe-area-inset-bottom));
+    width: 58px; height: 58px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-size: 30px; line-height: 1; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 22px rgba(255,107,53,.45); z-index: 20;
+  }
+  .fab:hover { filter: brightness(1.08); }
+
+  /* ===== Modal ===== */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: flex-end; justify-content: center; z-index: 50;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); width: 100%; max-width: 520px; border-radius: 18px 18px 0 0;
+    padding: 20px 18px calc(24px + env(safe-area-inset-bottom)); max-height: 92vh; overflow: auto;
+    border: 1px solid var(--line); border-bottom: none;
+  }
+  @media (min-width: 560px) { .overlay { align-items: center; } .modal { border-radius: 18px; border-bottom: 1px solid var(--line); } }
+  .modal h2 { margin: 0 0 16px; font-size: 18px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface-2); color: var(--text); font-size: 15px;
+  }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field-row { display: flex; gap: 11px; }
+  .field-row .field { flex: 1; }
+  .modal-actions { display: flex; gap: 11px; margin-top: 20px; }
+  .btn { border-radius: 11px; padding: 13px; font-size: 15px; font-weight: 700; flex: 1; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost { background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--text); }
+
+  .footer-note { text-align: center; color: var(--text-faint); font-size: 12px; line-height: 1.8; margin: 30px 0 6px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>🎫 <span class="tk">Ticket</span>Keeper</h1>
+    <div class="menu-wrap">
+      <button class="menu-btn" id="menuBtn" aria-label="メニュー">⋯</button>
+      <div class="menu" id="menu">
+        <button id="exportBtn">⬇ バックアップを書き出す</button>
+        <button id="importBtn">⬆ バックアップを読み込む</button>
+        <hr>
+        <button id="resetBtn" class="danger">🗑 全データを削除</button>
+        <input type="file" id="importFile" accept="application/json" hidden>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div id="summary" class="summary"></div>
+
+    <div class="controls">
+      <input type="search" id="search" placeholder="名前・メモで検索…">
+      <select id="sort">
+        <option value="expiry">期限が近い順</option>
+        <option value="expiry-desc">期限が遠い順</option>
+        <option value="name">名前順</option>
+        <option value="added">登録が新しい順</option>
+      </select>
+    </div>
+
+    <div class="chips" id="catChips"></div>
+
+    <label class="toggle-used">
+      <input type="checkbox" id="showUsed"> 使用済み・期限切れも表示する
+    </label>
+
+    <div class="list" id="list"></div>
+
+    <div class="footer-note">
+      データはこの端末のブラウザ内にのみ保存されます（サーバー送信なし）。<br>
+      機種変更・別端末で使うときはメニューから「バックアップを書き出す」を実行してください。
+    </div>
+  </div>
+</div>
+
+<button class="fab" id="addBtn" aria-label="追加">＋</button>
+
+<!-- 追加/編集モーダル -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="modalTitle">チケットを追加</h2>
+    <form id="form">
+      <input type="hidden" id="f-id">
+      <div class="field">
+        <label for="f-name">名前 *</label>
+        <input id="f-name" required placeholder="例）ミスド ドーナツ引換券">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="f-cat">カテゴリ</label>
+          <select id="f-cat"></select>
+        </div>
+        <div class="field">
+          <label for="f-qty">枚数・数量</label>
+          <input id="f-qty" type="number" min="0" step="1" inputmode="numeric" placeholder="1">
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-expiry">有効期限 *</label>
+        <input id="f-expiry" type="date" required>
+      </div>
+      <div class="field">
+        <label for="f-note">メモ（店舗・金額・利用条件など）</label>
+        <textarea id="f-note" placeholder="例）500円分 / 全国の店舗で利用可"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="cancelBtn">キャンセル</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var KEY = "ticketkeeper_v1";
+  var CATS = ["ミスド", "株主優待", "クーポン", "ギフト券", "ポイント", "その他"];
+  var items = load();
+  var filterCat = "all";
+  var showUsed = false;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var el = {
+    list: $("list"), summary: $("summary"), chips: $("catChips"),
+    search: $("search"), sort: $("sort"), showUsed: $("showUsed"),
+    overlay: $("overlay"), form: $("form"), modalTitle: $("modalTitle"),
+    importFile: $("importFile"), menu: $("menu")
+  };
+
+  // ---- storage ----
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; }
+    catch (e) { return []; }
+  }
+  function save() { localStorage.setItem(KEY, JSON.stringify(items)); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+  // ---- date helpers ----
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function todayStr() { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function daysUntil(s) {
+    var t = new Date(todayStr() + "T00:00:00"), d = new Date(s + "T00:00:00");
+    return Math.round((d - t) / 86400000);
+  }
+  function fmtDate(s) {
+    var d = new Date(s + "T00:00:00");
+    var w = ["日", "月", "火", "水", "木", "金", "土"][d.getDay()];
+    return (d.getMonth() + 1) + "/" + d.getDate() + "(" + w + ")";
+  }
+  function statusOf(it) {
+    if (it.used) return "used";
+    var n = daysUntil(it.expiry);
+    if (n < 0) return "expired";
+    if (n <= 7) return "soon";
+    if (n <= 30) return "month";
+    return "ok";
+  }
+
+  // ---- render ----
+  function render() {
+    renderChips();
+    var q = el.search.value.trim().toLowerCase();
+    var rows = items.filter(function (it) {
+      if (filterCat !== "all" && it.cat !== filterCat) return false;
+      if (!showUsed) { if (it.used) return false; if (daysUntil(it.expiry) < 0) return false; }
+      if (q) { if (((it.name + " " + (it.note || "")).toLowerCase()).indexOf(q) === -1) return false; }
+      return true;
+    });
+
+    var sort = el.sort.value;
+    rows.sort(function (a, b) {
+      if (sort === "name") return a.name.localeCompare(b.name, "ja");
+      if (sort === "added") return (b.added || 0) - (a.added || 0);
+      if (sort === "expiry-desc") return b.expiry.localeCompare(a.expiry);
+      return a.expiry.localeCompare(b.expiry);
+    });
+
+    renderSummary();
+
+    if (!rows.length) {
+      el.list.innerHTML = '<div class="empty"><div class="big">🗂️</div>' +
+        (items.length ? "該当するチケットがありません。" : "まだ登録がありません。<br>右下の ＋ から登録しましょう。") + '</div>';
+      return;
+    }
+
+    el.list.innerHTML = "";
+    rows.forEach(function (it) {
+      var st = statusOf(it), n = daysUntil(it.expiry);
+      var dayText = it.used ? "使用済" : (n < 0 ? "期限切れ" : (n === 0 ? "本日まで" : "あと" + n + "日"));
+      var div = document.createElement("div");
+      div.className = "item " + st;
+      div.innerHTML =
+        '<div class="item-main">' +
+          '<div class="name"></div>' +
+          '<div class="meta"><span class="cat-tag"></span>' + (it.qty ? '<span class="qty"></span>' : '') + '</div>' +
+          (it.note ? '<div class="note"></div>' : '') +
+          '<div class="row-actions">' +
+            '<button class="icon-btn" data-act="toggle">' + (it.used ? "↩ 戻す" : "✓ 使用済") + '</button>' +
+            '<button class="icon-btn" data-act="edit">✎ 編集</button>' +
+            '<button class="icon-btn" data-act="del">🗑 削除</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="days ' + (it.used ? "" : st) + '"><span class="num">' + dayText + '</span><span class="date">' + fmtDate(it.expiry) + '</span></div>';
+
+      div.querySelector(".name").textContent = it.name;
+      div.querySelector(".cat-tag").textContent = it.cat;
+      if (it.qty) div.querySelector(".qty").textContent = "×" + it.qty;
+      if (it.note) div.querySelector(".note").textContent = it.note;
+
+      div.querySelector('[data-act=toggle]').onclick = function () { it.used = !it.used; save(); render(); };
+      div.querySelector('[data-act=edit]').onclick = function () { openModal(it); };
+      div.querySelector('[data-act=del]').onclick = function () {
+        if (confirm("「" + it.name + "」を削除しますか？")) {
+          items = items.filter(function (x) { return x.id !== it.id; }); save(); render();
+        }
+      };
+      el.list.appendChild(div);
+    });
+  }
+
+  function renderSummary() {
+    var active = items.filter(function (it) { return !it.used; });
+    var expired = active.filter(function (it) { return daysUntil(it.expiry) < 0; }).length;
+    var soon = active.filter(function (it) { var n = daysUntil(it.expiry); return n >= 0 && n <= 7; }).length;
+    var html = '<span class="pill">登録 ' + items.length + ' 件</span>';
+    if (soon) html += '<span class="pill orange">7日以内 ' + soon + ' 件</span>';
+    if (expired) html += '<span class="pill red">期限切れ ' + expired + ' 件</span>';
+    el.summary.innerHTML = html;
+  }
+
+  function renderChips() {
+    if (el.chips.dataset.built) {
+      Array.prototype.forEach.call(el.chips.children, function (c) { c.classList.toggle("active", c.dataset.cat === filterCat); });
+      return;
+    }
+    ["all"].concat(CATS).forEach(function (c) {
+      var span = document.createElement("span");
+      span.className = "chip" + (c === filterCat ? " active" : "");
+      span.dataset.cat = c;
+      span.textContent = c === "all" ? "すべて" : c;
+      span.onclick = function () { filterCat = c; render(); };
+      el.chips.appendChild(span);
+    });
+    el.chips.dataset.built = "1";
+  }
+
+  // ---- modal ----
+  function openModal(item) {
+    el.form.reset();
+    if (item) {
+      el.modalTitle.textContent = "チケットを編集";
+      $("f-id").value = item.id; $("f-name").value = item.name; $("f-cat").value = item.cat;
+      $("f-qty").value = item.qty || ""; $("f-expiry").value = item.expiry; $("f-note").value = item.note || "";
+    } else { el.modalTitle.textContent = "チケットを追加"; $("f-id").value = ""; }
+    el.overlay.classList.add("open");
+    setTimeout(function () { $("f-name").focus(); }, 50);
+  }
+  function closeModal() { el.overlay.classList.remove("open"); }
+
+  el.form.onsubmit = function (e) {
+    e.preventDefault();
+    var id = $("f-id").value;
+    var data = {
+      name: $("f-name").value.trim(), cat: $("f-cat").value,
+      qty: parseInt($("f-qty").value, 10) || 0, expiry: $("f-expiry").value, note: $("f-note").value.trim()
+    };
+    if (!data.name || !data.expiry) return;
+    if (id) { items.forEach(function (it) { if (it.id === id) Object.assign(it, data); }); }
+    else { data.id = uid(); data.used = false; data.added = Date.now(); items.push(data); }
+    save(); closeModal(); render();
+  };
+
+  // ---- export / import / reset ----
+  function exportData() {
+    var blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "ticketkeeper-backup-" + todayStr() + ".json";
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+  function importData(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(reader.result);
+        if (!Array.isArray(data)) throw new Error("形式が不正です");
+        var mode = items.length ? (confirm("OK＝現在のデータに追加 / キャンセル＝全て置き換え") ? "merge" : "replace") : "replace";
+        data = data.map(function (d) {
+          return { id: d.id || uid(), name: d.name || "(無題)", cat: d.cat || "その他",
+            qty: d.qty || 0, expiry: d.expiry || todayStr(), note: d.note || "", used: !!d.used, added: d.added || Date.now() };
+        });
+        if (mode === "replace") items = data;
+        else { var ids = {}; items.forEach(function (it) { ids[it.id] = true; }); data.forEach(function (d) { if (!ids[d.id]) items.push(d); }); }
+        save(); render(); alert("読み込みました（" + data.length + " 件）");
+      } catch (err) { alert("読み込みに失敗しました: " + err.message); }
+    };
+    reader.readAsText(file);
+  }
+
+  // ---- menu ----
+  function closeMenu() { el.menu.classList.remove("open"); }
+  $("menuBtn").onclick = function (e) { e.stopPropagation(); el.menu.classList.toggle("open"); };
+  document.addEventListener("click", closeMenu);
+  el.menu.onclick = function (e) { e.stopPropagation(); };
+
+  // ---- events ----
+  $("addBtn").onclick = function () { openModal(null); };
+  $("cancelBtn").onclick = closeModal;
+  $("exportBtn").onclick = function () { closeMenu(); exportData(); };
+  $("importBtn").onclick = function () { closeMenu(); el.importFile.click(); };
+  $("resetBtn").onclick = function () {
+    closeMenu();
+    if (confirm("すべての登録データを削除します。よろしいですか？\n（事前にバックアップ書き出しを推奨）")) { items = []; save(); render(); }
+  };
+  el.importFile.onchange = function (e) { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ""; };
+  el.overlay.onclick = function (e) { if (e.target === el.overlay) closeModal(); };
+  el.search.oninput = render;
+  el.sort.onchange = render;
+  el.showUsed.onchange = function () { showUsed = el.showUsed.checked; render(); };
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeModal(); closeMenu(); } });
+
+  // populate category select
+  CATS.forEach(function (c) { var o = document.createElement("option"); o.textContent = c; $("f-cat").appendChild(o); });
+
+  render();
+})();
+</script>
+</body>
+</html>
