@@ -145,6 +145,45 @@
   .days.month .num { color: var(--yellow); }
   .days .date { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; }
 
+  /* ===== Grouped card (same name + category) ===== */
+  .grp-count {
+    background: var(--accent-soft); color: var(--accent); border-radius: 6px;
+    padding: 1px 8px; font-size: 11.5px; font-weight: 600;
+  }
+  .grp-toggle {
+    margin-top: 10px; font-size: 12.5px; color: var(--text-dim); background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .grp-toggle:hover { color: var(--text); border-color: var(--text-faint); }
+  .grp-toggle .chev { display: inline-block; transition: transform .15s; }
+  .item.group.open .grp-toggle .chev { transform: rotate(90deg); }
+  .batches {
+    margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .batch {
+    display: flex; gap: 10px; align-items: flex-start; justify-content: space-between;
+    background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--line);
+    border-radius: 9px; padding: 8px 10px;
+  }
+  .batch.expired { border-left-color: var(--red); }
+  .batch.soon    { border-left-color: var(--orange); }
+  .batch.month   { border-left-color: var(--yellow); }
+  .batch.used    { opacity: .5; }
+  .batch-main { min-width: 0; flex: 1; }
+  .batch-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 10px; }
+  .batch-days { font-weight: 700; font-size: 13.5px; color: var(--text); white-space: nowrap; }
+  .batch.expired .batch-days { color: var(--red); }
+  .batch.soon    .batch-days { color: var(--orange); }
+  .batch.month   .batch-days { color: var(--yellow); }
+  .batch.used    .batch-days { color: var(--text-dim); text-decoration: line-through; }
+  .batch-date { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+  .batch-qty  { font-size: 12px; color: var(--text-dim); }
+  .batch-note { font-size: 12px; color: var(--text-faint); margin-top: 3px; white-space: pre-wrap; word-break: break-word; flex-basis: 100%; }
+  .batch-actions { display: flex; gap: 5px; flex-shrink: 0; }
+  .batch-actions .icon-btn { padding: 5px 9px; }
+
   .empty { text-align: center; color: var(--text-faint); padding: 56px 16px; }
   .empty .big { font-size: 46px; margin-bottom: 10px; }
 
@@ -279,6 +318,7 @@
   var items = load();
   var filterCat = "all";
   var showUsed = false;
+  var expanded = {};   // グループ展開状態（key: カテゴリ+名前）
 
   var $ = function (id) { return document.getElementById(id); };
   var el = {
@@ -318,6 +358,12 @@
   }
 
   // ---- render ----
+  function dayTextOf(it) {
+    var n = daysUntil(it.expiry);
+    return it.used ? "使用済" : (n < 0 ? "期限切れ" : (n === 0 ? "本日まで" : "あと" + n + "日"));
+  }
+  function groupKeyOf(it) { return it.cat + " " + it.name; }
+
   function render() {
     renderChips();
     var q = el.search.value.trim().toLowerCase();
@@ -328,55 +374,134 @@
       return true;
     });
 
+    // 同じ「名前＋カテゴリ」をひとつのグループに集約
+    var map = {}, order = [];
+    rows.forEach(function (it) {
+      var k = groupKeyOf(it);
+      if (!map[k]) { map[k] = []; order.push(k); }
+      map[k].push(it);
+    });
+    var groups = order.map(function (k) {
+      var arr = map[k];
+      var active = arr.filter(function (x) { return !x.used; });
+      var pool = active.length ? active : arr;       // 代表＝未使用で最も期限が近いもの
+      var rep = pool.reduce(function (a, b) { return a.expiry <= b.expiry ? a : b; });
+      var addedMax = arr.reduce(function (m, x) { return Math.max(m, x.added || 0); }, 0);
+      var expiryMax = arr.reduce(function (m, x) { return x.expiry > m ? x.expiry : m; }, "");
+      return { key: k, items: arr, rep: rep, name: arr[0].name, cat: arr[0].cat,
+               repExpiry: rep.expiry, addedMax: addedMax, expiryMax: expiryMax };
+    });
+
     var sort = el.sort.value;
-    rows.sort(function (a, b) {
+    groups.sort(function (a, b) {
       if (sort === "name") return a.name.localeCompare(b.name, "ja");
-      if (sort === "added") return (b.added || 0) - (a.added || 0);
-      if (sort === "expiry-desc") return b.expiry.localeCompare(a.expiry);
-      return a.expiry.localeCompare(b.expiry);
+      if (sort === "added") return b.addedMax - a.addedMax;
+      if (sort === "expiry-desc") return b.expiryMax.localeCompare(a.expiryMax);
+      return a.repExpiry.localeCompare(b.repExpiry);
     });
 
     renderSummary();
 
-    if (!rows.length) {
+    if (!groups.length) {
       el.list.innerHTML = '<div class="empty"><div class="big">🗂️</div>' +
         (items.length ? "該当するチケットがありません。" : "まだ登録がありません。<br>右下の ＋ から登録しましょう。") + '</div>';
       return;
     }
 
     el.list.innerHTML = "";
-    rows.forEach(function (it) {
-      var st = statusOf(it), n = daysUntil(it.expiry);
-      var dayText = it.used ? "使用済" : (n < 0 ? "期限切れ" : (n === 0 ? "本日まで" : "あと" + n + "日"));
-      var div = document.createElement("div");
-      div.className = "item " + st;
-      div.innerHTML =
-        '<div class="item-main">' +
-          '<div class="name"></div>' +
-          '<div class="meta"><span class="cat-tag"></span>' + (it.qty ? '<span class="qty"></span>' : '') + '</div>' +
-          (it.note ? '<div class="note"></div>' : '') +
-          '<div class="row-actions">' +
-            '<button class="icon-btn" data-act="toggle">' + (it.used ? "↩ 戻す" : "✓ 使用済") + '</button>' +
-            '<button class="icon-btn" data-act="edit">✎ 編集</button>' +
-            '<button class="icon-btn" data-act="del">🗑 削除</button>' +
-          '</div>' +
-        '</div>' +
-        '<div class="days ' + (it.used ? "" : st) + '"><span class="num">' + dayText + '</span><span class="date">' + fmtDate(it.expiry) + '</span></div>';
-
-      div.querySelector(".name").textContent = it.name;
-      div.querySelector(".cat-tag").textContent = it.cat;
-      if (it.qty) div.querySelector(".qty").textContent = "×" + it.qty;
-      if (it.note) div.querySelector(".note").textContent = it.note;
-
-      div.querySelector('[data-act=toggle]').onclick = function () { it.used = !it.used; save(); render(); };
-      div.querySelector('[data-act=edit]').onclick = function () { openModal(it); };
-      div.querySelector('[data-act=del]').onclick = function () {
-        if (confirm("「" + it.name + "」を削除しますか？")) {
-          items = items.filter(function (x) { return x.id !== it.id; }); save(); render();
-        }
-      };
-      el.list.appendChild(div);
+    groups.forEach(function (g) {
+      el.list.appendChild(g.items.length === 1 ? renderSingle(g.items[0]) : renderGroup(g));
     });
+  }
+
+  function wireActions(scope, it) {
+    scope.querySelector('[data-act=toggle]').onclick = function (e) { e.stopPropagation(); it.used = !it.used; save(); render(); };
+    scope.querySelector('[data-act=edit]').onclick = function (e) { e.stopPropagation(); openModal(it); };
+    scope.querySelector('[data-act=del]').onclick = function (e) {
+      e.stopPropagation();
+      if (confirm("「" + it.name + "」を削除しますか？")) {
+        items = items.filter(function (x) { return x.id !== it.id; }); save(); render();
+      }
+    };
+  }
+
+  function renderSingle(it) {
+    var st = statusOf(it);
+    var div = document.createElement("div");
+    div.className = "item " + st;
+    div.innerHTML =
+      '<div class="item-main">' +
+        '<div class="name"></div>' +
+        '<div class="meta"><span class="cat-tag"></span>' + (it.qty ? '<span class="qty"></span>' : '') + '</div>' +
+        (it.note ? '<div class="note"></div>' : '') +
+        '<div class="row-actions">' +
+          '<button class="icon-btn" data-act="toggle">' + (it.used ? "↩ 戻す" : "✓ 使用済") + '</button>' +
+          '<button class="icon-btn" data-act="edit">✎ 編集</button>' +
+          '<button class="icon-btn" data-act="del">🗑 削除</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="days ' + (it.used ? "" : st) + '"><span class="num">' + dayTextOf(it) + '</span><span class="date">' + fmtDate(it.expiry) + '</span></div>';
+    div.querySelector(".name").textContent = it.name;
+    div.querySelector(".cat-tag").textContent = it.cat;
+    if (it.qty) div.querySelector(".qty").textContent = "×" + it.qty;
+    if (it.note) div.querySelector(".note").textContent = it.note;
+    wireActions(div, it);
+    return div;
+  }
+
+  function renderGroup(g) {
+    var st = statusOf(g.rep);
+    var count = g.items.length;
+    var totalQty = g.items.reduce(function (s, x) { return s + (x.used ? 0 : (x.qty || 0)); }, 0);
+    var isOpen = !!expanded[g.key];
+
+    var div = document.createElement("div");
+    div.className = "item group " + st + (isOpen ? " open" : "");
+    div.innerHTML =
+      '<div class="item-main">' +
+        '<div class="name"></div>' +
+        '<div class="meta"><span class="cat-tag"></span>' +
+          '<span class="grp-count">期限 ' + count + ' 件</span>' +
+          (totalQty ? '<span class="qty">残 ×' + totalQty + '</span>' : '') +
+        '</div>' +
+        '<button class="grp-toggle" data-act="expand"><span class="chev">▸</span> 期限の内訳を' + (isOpen ? "隠す" : "見る") + '</button>' +
+        '<div class="batches"' + (isOpen ? '' : ' hidden') + '></div>' +
+      '</div>' +
+      '<div class="days ' + (g.rep.used ? "" : st) + '"><span class="num">' + dayTextOf(g.rep) + '</span><span class="date">' + fmtDate(g.rep.expiry) + '</span></div>';
+
+    div.querySelector(".name").textContent = g.name;
+    div.querySelector(".cat-tag").textContent = g.cat;
+
+    // 内訳：期限が近い順（使用済みは末尾）
+    var box = div.querySelector(".batches");
+    g.items.slice().sort(function (a, b) {
+      if (a.used !== b.used) return a.used ? 1 : -1;
+      return a.expiry.localeCompare(b.expiry);
+    }).forEach(function (it) {
+      var bst = statusOf(it);
+      var row = document.createElement("div");
+      row.className = "batch " + bst;
+      row.innerHTML =
+        '<div class="batch-main">' +
+          '<div class="batch-top"><span class="batch-days"></span><span class="batch-date"></span>' +
+            (it.qty ? '<span class="batch-qty"></span>' : '') + '</div>' +
+          (it.note ? '<div class="batch-note"></div>' : '') +
+        '</div>' +
+        '<div class="batch-actions">' +
+          '<button class="icon-btn" data-act="toggle" title="' + (it.used ? "使用済を戻す" : "使用済にする") + '">' + (it.used ? "↩" : "✓") + '</button>' +
+          '<button class="icon-btn" data-act="edit" title="編集">✎</button>' +
+          '<button class="icon-btn" data-act="del" title="削除">🗑</button>' +
+        '</div>';
+      row.querySelector(".batch-days").textContent = dayTextOf(it);
+      row.querySelector(".batch-date").textContent = fmtDate(it.expiry);
+      if (it.qty) row.querySelector(".batch-qty").textContent = "×" + it.qty;
+      if (it.note) row.querySelector(".batch-note").textContent = it.note;
+      wireActions(row, it);
+      box.appendChild(row);
+    });
+
+    div.querySelector('[data-act=expand]').onclick = function () { expanded[g.key] = !isOpen; render(); };
+    return div;
   }
 
   function renderSummary() {
